@@ -1,0 +1,8 @@
+/* $Id$ */ 
+
+a.interlink {
+  text-decoration: none;
+  border-bottom: 1px dotted #080;
+  color: #080;
+  cursor: help;
+}

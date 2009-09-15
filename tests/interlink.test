@@ -1,0 +1,98 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Test cases for the interlink module.
+ */
+
+/**
+ * Test InterLink filter.
+ */
+class InterLinkFilterTestCase extends DrupalWebTestCase {
+  /**
+   * Implementation of getInfo().
+   */
+  public static function getInfo() {
+    return array(
+      'name' => 'InterLinked contents',
+      'description' => 'Verify that InterLink properly links contents.',
+      'group' => 'InterLink',
+    );
+  }
+
+  /**
+   * Implementation of setUp().
+   */
+  function setUp() {
+    parent::setUp('interlink', 'simplehtmldom');
+
+    // Create and login user.
+    $admin_user = $this->drupalCreateUser(array('administer filters', 'create page content'));
+    $this->drupalLogin($admin_user);
+
+    // Find a non-existent random name.
+    do {
+      $name = strtolower($this->randomName(3, 'inputformat_'));
+    } while (filter_format_load($name));
+    // Add an InterLink-enabled input format.
+    $edit = array(
+      'name' => $name,
+      'roles[' . DRUPAL_ANONYMOUS_RID . ']' => TRUE,
+      'roles[' . DRUPAL_AUTHENTICATED_RID . ']' => TRUE,
+      'filters[interlink/0]' => TRUE,
+    );
+    $this->drupalPost('admin/settings/filters/add', $edit, t('Save configuration'));
+    // Store the format id of the created input format.
+    $this->format_id = db_result(db_query("SELECT format FROM {filter_formats} WHERE name = '%s'", $name));
+    $this->assertTrue($this->format_id, t('Input format id (%format)', array('%format' => $this->format_id)));
+  }
+
+  /**
+   * Test interlinking contents.
+   */
+  function testInterLinkContents() {
+    // Create a glossary node with two terms.
+    $settings = array(
+      'type' => 'page',
+      'synonyms' => implode("\n", array('Content Management System', 'CMS')),
+    );
+    $this->linked_node = $this->drupalCreateNode($settings);
+
+    // Create an InterLink-enabed node.
+    $settings = array(
+      'type' => 'page',
+      'format' => $this->format_id,
+      'body' => implode("\n", array(
+        // Single word must match.
+        '1. CMS',
+        // Plural must match.
+        '2. Content Management Systems',
+        // Connected words must match.
+        '3. Drupal-CMS',
+        // Excluded parent tags must NOT match.
+        '4. <a><strong>CMS</strong></a>',
+      )),
+    );
+    $test_node = $this->drupalCreateNode($settings);
+
+    // Fetch test page.
+    $this->drupalGet('node/' . $test_node->nid);
+
+    // Check for expected output.
+    $this->assertPattern('@1. '. $this->_createInterLinkPattern('CMS') . '@', t('Single word matched'));
+    $this->assertPattern('@2. '. $this->_createInterLinkPattern('Content Management System') . 's@', t('Plural matched'));
+    $this->assertPattern('@3. Drupal-'. $this->_createInterLinkPattern('CMS') . '@', t('Connected words matched'));
+    $this->assertPattern('@4. <a><strong>CMS</strong></a>@', t('Words within excluded parent tags did not match'));
+  }
+
+  /**
+   * Create a regex pattern to match a linked term.
+   */
+  protected function _createInterLinkPattern($word) {
+    $title = check_plain($this->linked_node->title);
+    $url = url('node/' . $this->linked_node->nid);
+    return '<a[^>]+href="' . $url . '"[^>]*><abbr[^>]+title="' . $title . '"[^>]*>' . $word . '</abbr></a>';
+  }
+}
+

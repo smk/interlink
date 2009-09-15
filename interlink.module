@@ -1,0 +1,237 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Universal word/phrase linking a.k.a. glossary.
+ */
+
+/**
+ * Implementation of hook_form_alter().
+ */
+function interlink_form_alter(&$form, $form_state, $form_id) {
+  if ($form_id == 'node_type_form' && isset($form['identity']['type'])) {
+    // @todo Node type selection.
+  }
+  elseif (isset($form['type']) && isset($form['#node']) && $form['type']['#value'] .'_node_form' == $form_id) {
+    $synonyms = !empty($form['#node']->nid) ? interlink_load_synonyms('node', $form['#node']->nid) : array();
+    $form['interlink'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('InterLink settings'),
+      '#collapsible' => TRUE,
+      '#collapsed' => TRUE,
+    );
+    $form['interlink']['synonyms'] = array(
+      '#type' => 'textarea',
+      '#title' => t('Synonyms'),
+      '#default_value' => implode("\n", $synonyms),
+      #'#description' => t(''),
+    );
+    $form['#validate'][] = 'interlink_node_form_validate';
+
+    if (module_exists('vertical_tabs')) {
+      // Add javascript tp provide vertical tabs summary callbacks.
+      drupal_add_js(drupal_get_path('module', 'interlink') .'/interlink.node_form.js');
+    }
+  }
+}
+
+function interlink_node_form_validate($form, &$form_state) {
+  //$synonyms = explode("\n", $form_state['values']['synonyms']);
+}
+
+function interlink_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+  if ($op == 'insert' || $op == 'update') {
+    $synonyms = explode("\n", $node->synonyms);
+    interlink_save_synonyms('node', $node->nid, $node->title, $synonyms);
+  }
+}
+
+/**
+ * Implementation of hook_init().
+ */
+function interlink_init() {
+  drupal_add_css(drupal_get_path('module', 'interlink') .'/interlink.css');
+}
+
+/**
+ * Implementation of hook_filter().
+ */
+function interlink_filter($op, $delta = 0, $format = -1, $text = '') {
+  switch ($op) {
+    case 'list':
+      return array(0 => t('InterLink filter'));
+
+    case 'description':
+      return t('Interlink words or phrases.');
+
+    case 'process':
+      return interlink_filter_process($text, $format);
+
+    case 'no cache':
+      // @todo Testing only.
+      return TRUE;
+
+    default:
+      return $text;
+  }
+}
+
+/**
+ * Filter text.
+ */
+function interlink_filter_process($text, $format) {
+  // Get regular expression.
+  if ($cache = cache_get('interlink:rx')) {
+    $regex = $cache->data;
+  }
+  else {
+    // Rebuild regular expression.
+    $synonyms = array();
+    $result = db_query("SELECT synonym FROM {interlink_synonym} ORDER BY CHAR_LENGTH(synonym) DESC");
+    while ($row = db_fetch_array($result)) {
+      $synonyms[] = preg_quote($row['synonym'], '/');
+    }
+    // @todo Add tests:
+    // combined words: "Drupal-CMS" => match "CMS"
+    // plural form: "Content Management Systems" => match "Content Management System"
+    // "Drupal's" => match "Drupal"
+    $regex = implode('|', $synonyms);
+    cache_set('interlink:rx', $regex);
+    unset($synonyms);
+  }
+  if (!$regex) {
+    return $text;
+  }
+
+  $excluded_tags = variable_get('interlink_excluded_tags', array('a', 'abbr', 'acronym'));
+
+  // Create a DOM object from the text.
+  $html = str_get_html($text);
+
+  // Process all DOM text nodes.
+  foreach ($html->find('text') as $element) {
+    // Traverse up the tree to exclude conflicting parent tags.
+    // @todo Add test:
+    // nested parent tags: <a><strong>match</strong></a> => FAIL
+    $parent = $element->parent;
+    do {
+      if (in_array($parent->tag, $excluded_tags)) {
+        // Skip this element.
+        continue 2;
+      }
+    }
+    while ($parent = $parent->parent);
+
+    // @todo What about single quotes in matched text?
+    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "_interlink_filter_replace('\\1')", $element->innertext);
+  }
+
+  return $html->save();
+}
+
+/**
+ * Helper function to replace a matched phrase.
+ */
+function _interlink_filter_replace($match) {
+  $synonym = interlink_load_synonym($match);
+  $text = '<abbr title="' . check_plain($synonym->title) . '">' . $match . '</abbr>';
+  $url = $synonym->object_type . '/' . $synonym->object_id;
+  return l($text, $url, array('attributes' => array('class' => 'interlink interlink-'. $synonym->object_type), 'html' => TRUE));
+}
+
+/**
+ * @defgroup interlink_crud InterLink CRUD functions
+ * @{
+ */
+
+/**
+ * Load one synonym.
+ *
+ * @param $synonym
+ *   A synonym string.
+ * @return
+ *   A synonym definition record.
+ */
+function interlink_load_synonym($synonym) {
+  return db_fetch_object(db_query("SELECT s.*, t.title FROM {interlink_synonym} s LEFT JOIN {interlink_title} t ON t.object_type = s.object_type AND t.object_id = s.object_id WHERE s.synonym = '%s'", $synonym));
+}
+
+/**
+ * Load synonyms for an object.
+ *
+ * @param $object_type
+ *   The object type to load synonyms for.
+ * @param $object_id
+ *   The object id to load synonyms for.
+ * @return
+ *   An array of synonyms.
+ */
+function interlink_load_synonyms($object_type, $object_id) {
+  $synoyms = array();
+  $result = db_query("SELECT synonym FROM {interlink_synonym} WHERE object_type = '%s' AND object_id = %d", $object_type, $object_id);
+  while ($row = db_fetch_array($result)) {
+    $synoyms[] = $row['synonym'];
+  }
+  return $synoyms;
+}
+
+/**
+ * Save synonyms for an object.
+ *
+ * @param $object_type
+ *   The object type to save synonyms for.
+ * @param $object_id
+ *   The object id to save synonyms for.
+ * @param $object_title
+ *   The unabbreviated title of the object.
+ * @param $synonyms
+ *   An array of synonyms for the object.
+ */
+function interlink_save_synonyms($object_type, $object_id, $object_title, array $synonyms) {
+  // Clean data.
+  foreach ($synonyms as $key => $value) {
+    if (trim($value) == '') {
+      unset($synonyms[$key]);
+      continue;
+    }
+    // Strip carriage return leftovers on Windows OS.
+    $synonyms[$key] = str_replace("\r", '', $value);
+  }
+  // No need to flush caches if nothing changed.
+  if ($synonyms == interlink_load_synonyms($object_type, $object_id)) {
+    return;
+  }
+
+  // Delete existing data.
+  db_query("DELETE FROM {interlink_synonym} WHERE object_type = '%s' AND object_id = %d", $object_type, $object_id);
+  db_query("DELETE FROM {interlink_title} WHERE object_type = '%s' AND object_id = %d", $object_type, $object_id);
+
+  // Store synonyms.
+  foreach ($synonyms as $synonym) {
+    $record = array(
+      'object_type' => $object_type,
+      'object_id' => $object_id,
+      'synonym' => $synonym,
+    );
+    drupal_write_record('interlink_synonym', $record);
+  }
+
+  // Store object title.
+  $record = array(
+    'object_type' => $object_type,
+    'object_id' => $object_id,
+    'title' => $object_title,
+  );
+  drupal_write_record('interlink_title', $record);
+
+  // Flush related cashes.
+  cache_clear_all('interlink:rx', 'cache');
+  cache_clear_all('*', 'cache_filter', TRUE);
+  cache_clear_all('*', 'cache_block', TRUE);
+  cache_clear_all('*', 'cache_page', TRUE);
+}
+
+/**
+ * @} End of "defgroup interlink_crud".
+ */

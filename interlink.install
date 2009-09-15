@@ -1,0 +1,88 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Install, update, and uninstall functions for the interlink module.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function interlink_schema() {
+  $schema['interlink_synonym'] = array(
+    'description' => t('Stores synonyms for referenced objects.'),
+    'fields' => array(
+      'object_type' => array(
+        'description' => t('The object type the synonym references.'),
+        'type' => 'varchar',
+        'length' => '12',
+        'not null' => TRUE,
+      ),
+      'object_id' => array(
+        'description' => t('The object id the synonym references.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'synonym' => array(
+        'description' => t('The synonym for the referenced object.'),
+        'type' => 'varchar',
+        'length' => '64',
+        'not null' => TRUE,
+      ),
+    ),
+    'indexes' => array(
+      'object_type_id' => array('object_type', 'object_id'),
+    ),
+    'unique keys' => array(
+      'synonym' => array('synonym'),
+    ),
+  );
+
+  $schema['interlink_title'] = array(
+    'description' => t('Stores unabbreviated titles of referenced objects.'),
+    'fields' => array(
+      'object_type' => array(
+        'description' => t('The object type the title belongs to.'),
+        'type' => 'varchar',
+        'length' => '12',
+        'not null' => TRUE,
+      ),
+      'object_id' => array(
+        'description' => t('The object id the title belongs to.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'title' => array(
+        'description' => t('The unabbreviated title of the referenced object.'),
+        'type' => 'varchar',
+        'length' => '255',
+        'not null' => TRUE,
+      ),
+    ),
+    'unique keys' => array(
+      'object_type_id' => array('object_type', 'object_id'),
+    ),
+  );
+
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function interlink_install() {
+  drupal_install_schema('interlink');
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function interlink_uninstall() {
+  drupal_uninstall_schema('interlink');
+  // Delete variables.
+  db_query("DELETE FROM {variable} WHERE name LIKE 'interlink_%%'");
+}
+
