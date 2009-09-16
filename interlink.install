@@ -10,25 +10,31 @@
  * Implementation of hook_schema().
  */
 function interlink_schema() {
-  $schema['interlink_synonym'] = array(
-    'description' => t('Stores synonyms for referenced objects.'),
+  $schema['interlink_term'] = array(
+    'description' => t('Stores terms (abbreviations/synonyms) for referenced objects.'),
     'fields' => array(
       'object_type' => array(
-        'description' => t('The object type the synonym references.'),
+        'description' => t('The object type the term references.'),
         'type' => 'varchar',
         'length' => '12',
         'not null' => TRUE,
       ),
       'object_id' => array(
-        'description' => t('The object id the synonym references.'),
+        'description' => t('The object id the term references.'),
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
       ),
-      'synonym' => array(
-        'description' => t('The synonym for the referenced object.'),
+      'term' => array(
+        'description' => t('The term for the referenced object.'),
         'type' => 'varchar',
         'length' => '64',
+        'not null' => TRUE,
+      ),
+      'type' => array(
+        'description' => t('The type of the term (abbreviation, synonym).'),
+        'type' => 'int',
+        'unsigned' => TRUE,
         'not null' => TRUE,
       ),
     ),
@@ -36,7 +42,7 @@ function interlink_schema() {
       'object_type_id' => array('object_type', 'object_id'),
     ),
     'unique keys' => array(
-      'synonym' => array('synonym'),
+      'term' => array('term'),
     ),
   );
 

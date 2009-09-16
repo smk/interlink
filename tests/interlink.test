@@ -55,7 +55,10 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
     // Create a glossary node with two terms.
     $settings = array(
       'type' => 'page',
-      'synonyms' => implode("\n", array('Content Management System', 'CMS')),
+      'interlink' => array(
+        'abbreviations' => 'CMS',
+        'synonyms' => 'Content Management System',
+      ),
     );
     $this->linked_node = $this->drupalCreateNode($settings);
 
