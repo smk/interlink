@@ -56,8 +56,8 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
     $settings = array(
       'type' => 'page',
       'interlink' => array(
-        'abbreviations' => 'CMS',
-        'synonyms' => 'Content Management System',
+        'abbreviations' => implode("\n", array('simple', 'plural form', 'connected', 'do not link')),
+        'synonyms' => '',
       ),
     );
     $this->linked_node = $this->drupalCreateNode($settings);
@@ -68,13 +68,13 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
       'format' => $this->format_id,
       'body' => implode("\n", array(
         // Single word must match.
-        '1. CMS',
-        // Plural must match.
-        '2. Content Management Systems',
-        // Connected words must match.
-        '3. Drupal-CMS',
+        '1. simple',
+        // Plural form must match.
+        '2. plural forms',
+        // Connected word must match.
+        '3. word-connected',
         // Excluded parent tags must NOT match.
-        '4. <a><strong>CMS</strong></a>',
+        '4. <a><strong>do not link</strong></a>',
       )),
     );
     $test_node = $this->drupalCreateNode($settings);
@@ -83,10 +83,10 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
     $this->drupalGet('node/' . $test_node->nid);
 
     // Check for expected output.
-    $this->assertPattern('@1. '. $this->_createInterlinkPattern('CMS') . '@', t('Single word matched'));
-    $this->assertPattern('@2. '. $this->_createInterlinkPattern('Content Management System') . 's@', t('Plural matched'));
-    $this->assertPattern('@3. Drupal-'. $this->_createInterlinkPattern('CMS') . '@', t('Connected words matched'));
-    $this->assertPattern('@4. <a><strong>CMS</strong></a>@', t('Words within excluded parent tags did not match'));
+    $this->assertPattern('@1. '. $this->_createInterlinkPattern('simple') . '@', t('Single word matched'));
+    $this->assertPattern('@2. '. $this->_createInterlinkPattern('plural form') . 's@', t('Plural matched'));
+    $this->assertPattern('@3. word-'. $this->_createInterlinkPattern('connected') . '@', t('Connected words matched'));
+    $this->assertPattern('@4. <a><strong>do not link</strong></a>@', t('Words within excluded parent tags did not match'));
   }
 
   /**

@@ -79,7 +79,7 @@ function interlink_filter($op, $delta = 0, $format = -1, $text = '') {
       return array(0 => t('Interlink filter'));
 
     case 'description':
-      return t('Interlink words or phrases.');
+      return t('Universal word/phrase linking a.k.a. glossary.');
 
     case 'process':
       return interlink_filter_process($text, $format);
@@ -118,6 +118,13 @@ function interlink_filter_process($text, $format) {
 
   $excluded_tags = variable_get('interlink_excluded_tags', array('a', 'abbr', 'acronym'));
 
+  // Generate a hash from the text to link terms only once. This is in
+  // accordance with the Web Content Accessibility Guidelines (WCAG) 1.0,
+  // checkpoint 4.2, which instructs us to "specify the expansion of each
+  // abbreviation or acronym in a document where it first occurs" (note the
+  // last bit).
+  $hash = md5($text);
+
   // Create a DOM object from the text.
   $html = str_get_html($text);
 
@@ -127,13 +134,15 @@ function interlink_filter_process($text, $format) {
     $parent = $element->parent;
     do {
       if (in_array($parent->tag, $excluded_tags)) {
+        // @todo This is too strict, adding an ABBR tag within an existing A tag
+        // (without linking, of course) is perfectly valid.
         // Skip this element.
         continue 2;
       }
     } while ($parent = $parent->parent);
 
     // @todo What about single quotes in matched text?
-    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "_interlink_filter_replace('\\1')", $element->innertext);
+    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "_interlink_filter_replace('$hash', '\\1')", $element->innertext);
   }
 
   return $html->save();
@@ -142,8 +151,17 @@ function interlink_filter_process($text, $format) {
 /**
  * Helper function to replace a matched phrase.
  */
-function _interlink_filter_replace($match) {
+function _interlink_filter_replace($hash, $match) {
+  static $matches = array();
+
+  // Abort if the term has already been linked in the text currently processed.
+  if (isset($matches[$hash][$match])) {
+    return $match;
+  }
+
   $term = interlink_load_term($match);
+  $matches[$hash][$match] = TRUE;
+
   $text = '<abbr title="' . check_plain($term->title) . '">' . $match . '</abbr>';
   $url = $term->object_type . '/' . $term->object_id;
   return l($text, $url, array('attributes' => array('class' => 'interlink interlink-'. $term->object_type), 'html' => TRUE));
