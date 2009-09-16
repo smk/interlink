@@ -15,8 +15,8 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
    */
   public static function getInfo() {
     return array(
-      'name' => 'Interlink contents',
-      'description' => 'Verify that interlink properly links words.',
+      'name' => 'Interlinking contents',
+      'description' => 'Verify that interlink properly links terms.',
       'group' => 'Interlink',
     );
   }
