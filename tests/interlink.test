@@ -7,7 +7,7 @@
  */
 
 /**
- * Test InterLink filter.
+ * Interlink filter test cases.
  */
 class InterLinkFilterTestCase extends DrupalWebTestCase {
   /**
@@ -15,9 +15,9 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
    */
   public static function getInfo() {
     return array(
-      'name' => 'InterLinked contents',
-      'description' => 'Verify that InterLink properly links contents.',
-      'group' => 'InterLink',
+      'name' => 'Interlink contents',
+      'description' => 'Verify that interlink properly links words.',
+      'group' => 'Interlink',
     );
   }
 
@@ -35,7 +35,7 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
     do {
       $name = strtolower($this->randomName(3, 'inputformat_'));
     } while (filter_format_load($name));
-    // Add an InterLink-enabled input format.
+    // Add an interlink-enabled input format.
     $edit = array(
       'name' => $name,
       'roles[' . DRUPAL_ANONYMOUS_RID . ']' => TRUE,
@@ -51,7 +51,7 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
   /**
    * Test interlinking contents.
    */
-  function testInterLinkContents() {
+  function testInterlinkContents() {
     // Create a glossary node with two terms.
     $settings = array(
       'type' => 'page',
@@ -62,7 +62,7 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
     );
     $this->linked_node = $this->drupalCreateNode($settings);
 
-    // Create an InterLink-enabed node.
+    // Create an interlink-enabed node.
     $settings = array(
       'type' => 'page',
       'format' => $this->format_id,
@@ -83,16 +83,16 @@ class InterLinkFilterTestCase extends DrupalWebTestCase {
     $this->drupalGet('node/' . $test_node->nid);
 
     // Check for expected output.
-    $this->assertPattern('@1. '. $this->_createInterLinkPattern('CMS') . '@', t('Single word matched'));
-    $this->assertPattern('@2. '. $this->_createInterLinkPattern('Content Management System') . 's@', t('Plural matched'));
-    $this->assertPattern('@3. Drupal-'. $this->_createInterLinkPattern('CMS') . '@', t('Connected words matched'));
+    $this->assertPattern('@1. '. $this->_createInterlinkPattern('CMS') . '@', t('Single word matched'));
+    $this->assertPattern('@2. '. $this->_createInterlinkPattern('Content Management System') . 's@', t('Plural matched'));
+    $this->assertPattern('@3. Drupal-'. $this->_createInterlinkPattern('CMS') . '@', t('Connected words matched'));
     $this->assertPattern('@4. <a><strong>CMS</strong></a>@', t('Words within excluded parent tags did not match'));
   }
 
   /**
    * Create a regex pattern to match a linked term.
    */
-  protected function _createInterLinkPattern($word) {
+  protected function _createInterlinkPattern($word) {
     $title = check_plain($this->linked_node->title);
     $url = url('node/' . $this->linked_node->nid);
     return '<a[^>]+href="' . $url . '"[^>]*><abbr[^>]+title="' . $title . '"[^>]*>' . $word . '</abbr></a>';

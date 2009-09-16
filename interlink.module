@@ -26,7 +26,7 @@ function interlink_form_alter(&$form, $form_state, $form_id) {
     }
     $form['interlink'] = array(
       '#type' => 'fieldset',
-      '#title' => t('InterLink settings'),
+      '#title' => t('Interlink settings'),
       '#tree' => TRUE,
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
@@ -76,7 +76,7 @@ function interlink_init() {
 function interlink_filter($op, $delta = 0, $format = -1, $text = '') {
   switch ($op) {
     case 'list':
-      return array(0 => t('InterLink filter'));
+      return array(0 => t('Interlink filter'));
 
     case 'description':
       return t('Interlink words or phrases.');
@@ -160,7 +160,7 @@ function interlink_get_types() {
 }
 
 /**
- * @defgroup interlink_crud InterLink CRUD functions
+ * @defgroup interlink_crud Interlink CRUD functions
  * @{
  */
 
