@@ -77,6 +77,24 @@ function interlink_schema() {
 }
 
 /**
+ * Implementation of hook_requirements().
+ */
+function interlink_requirements($phase) {
+  $requirements = array();
+  $t = get_t();
+
+  if (!file_exists('./sites/all/libraries/simplehtmldom/simple_html_dom.php')) {
+    // Required library wasn't found. Abort installation.
+    $requirements['interlink']['title'] = $t('Simple HTML DOM library');
+    $requirements['interlink']['value'] = $t('Not found');
+    $requirements['interlink']['description'] = $t('The <a href="@simplehtmldom">Simple HTML DOM</a> library is missing. <a href="@download">Download</a> and extract it to the <em>sites/all/libraries</em> directory. See <a href="@readme">README.txt</a> for more info.', array('@simplehtmldom' => 'http://simplehtmldom.sourceforge.net', '@download' => 'http://sourceforge.net/projects/simplehtmldom/files/', '@readme' => url(drupal_get_path('module', 'interlink') . '/README.txt')));
+    $requirements['interlink']['severity'] = REQUIREMENT_ERROR;
+  }
+
+  return $requirements;
+}
+
+/**
  * Implementation of hook_install().
  */
 function interlink_install() {
