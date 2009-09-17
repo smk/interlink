@@ -1,5 +1,4 @@
 ; $Id$
 name = InterLink
 description = Universal, semantically correct word/phrase linking a.k.a. glossary.
-dependencies[] = simplehtmldom
 core = 6.x

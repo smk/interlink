@@ -97,7 +97,9 @@ function interlink_filter($op, $delta = 0, $format = -1, $text = '') {
  * Filter text.
  */
 function interlink_filter_process($text, $format) {
-  // Get regular expression.
+  require_once './sites/all/libraries/simplehtmldom/simple_html_dom.php';
+
+  // Load regular expression consiting of all linked terms.
   if ($cache = cache_get('interlink:rx')) {
     $regex = $cache->data;
   }
