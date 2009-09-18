@@ -108,7 +108,7 @@ function interlink_filter_process($text, $format) {
     $terms = array();
     $result = db_query("SELECT term FROM {interlink_term} ORDER BY CHAR_LENGTH(term) DESC");
     while ($row = db_fetch_array($result)) {
-      $terms[] = preg_quote($row['term'], '/');
+      $terms[] = preg_replace('@ +@', '\s+', preg_quote($row['term'], '/'));
     }
     $regex = implode('|', $terms);
     cache_set('interlink:rx', $regex);
@@ -118,7 +118,7 @@ function interlink_filter_process($text, $format) {
     return $text;
   }
 
-  $excluded_tags = variable_get('interlink_excluded_tags', array('a', 'abbr', 'acronym'));
+  $excluded_tags = array_flip(variable_get('interlink_excluded_tags', array('abbr', 'acronym', 'dfn')));
 
   // Generate a hash from the text to link terms only once. This is in
   // accordance with the Web Content Accessibility Guidelines (WCAG) 1.0,
@@ -132,19 +132,23 @@ function interlink_filter_process($text, $format) {
 
   // Process all DOM text nodes.
   foreach ($html->find('text') as $element) {
-    // Traverse up the tree to exclude conflicting parent tags.
+    $in_anchor = 'FALSE';
+
+    // Traverse up the tree to find conflicting tags.
     $parent = $element->parent;
-    do {
-      if (in_array($parent->tag, $excluded_tags)) {
-        // @todo This is too strict, adding an ABBR tag within an existing A tag
-        // (without linking, of course) is perfectly valid.
-        // Skip this element.
+    while ($parent->tag != 'root') {
+      if (array_key_exists($parent->tag, $excluded_tags)) {
+       // Skip this element.
         continue 2;
       }
-    } while ($parent = $parent->parent);
+      // An anchor tag among the parents requires special handling.
+      if ($parent->tag == 'a') {
+        $in_anchor = 'TRUE';
+      }
+      $parent = $parent->parent;
+    }
 
-    // @todo What about single quotes in matched text?
-    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "_interlink_filter_replace('$hash', '\\1')", $element->innertext);
+    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "_interlink_filter_replace('$hash', '\\1', $in_anchor)", $element->innertext);
   }
 
   return $html->save();
@@ -153,20 +157,52 @@ function interlink_filter_process($text, $format) {
 /**
  * Helper function to replace a matched phrase.
  */
-function _interlink_filter_replace($hash, $match) {
-  static $matches = array();
+function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
+  static $terms = array(), $matches = array(), $first_only;
 
+  if (!isset($first_only)) {
+    $first_only = variable_get('interlink_first_only', TRUE);
+  }
   // Abort if the term has already been linked in the text currently processed.
-  if (isset($matches[$hash][$match])) {
+  if ($first_only && isset($matches[$hash][$match])) {
     return $match;
   }
-
-  $term = interlink_load_term($match);
   $matches[$hash][$match] = TRUE;
 
-  $text = '<abbr title="' . check_plain($term->title) . '">' . $match . '</abbr>';
+  if (!isset($terms[$match])) {
+    $terms[$match] = interlink_load_term($match);
+  }
+  $term = $terms[$match];
+
+  switch ($term->type) {
+    case INTERLINK_TYPE_ABBREVIATION:
+      $match = '<abbr title="' . check_plain($term->title) . '">' . $match . '</abbr>';
+      if ($in_anchor) {
+        // Just expand the abbreviation if it appears within an anchor tag.
+        return $match;
+      }
+      // Otherwise link it to the term.
+      $options['html'] = TRUE;
+      break;
+  
+    case INTERLINK_TYPE_SYNONYM:
+      if ($in_anchor) {
+        // A synonym within an anchor tag cannot be linked.
+        unset($matches[$hash][$match]);
+        return $match;
+      }
+      // Otherwise link it to the term.
+      $options['attributes']['title'] = check_plain($term->title);
+      break;
+  }
+
   $url = $term->object_type . '/' . $term->object_id;
-  return l($text, $url, array('attributes' => array('class' => 'interlink interlink-'. $term->object_type), 'html' => TRUE));
+  $options += array(
+    'fragment' => 'interlink-' . $term->object_type . '-' . $term->object_id,
+    'attributes' => array(),
+  );
+  $options['attributes'] += array('class' => 'interlink interlink-' . $term->object_type);
+  return l($match, $url, $options);
 }
 
 /**
