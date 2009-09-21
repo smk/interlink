@@ -14,5 +14,7 @@ class interlink_views_handler_filter_linked extends views_handler_filter_boolean
     $this->ensure_my_table();
     $operator = !empty($this->value) ? 'IS NOT NULL' : 'IS NULL';
     $this->query->add_where($this->options['group'], "$this->table_alias.$this->real_field $operator");
+    // This is required, otherwise multiple terms result in duplicated rows.
+    $this->query->set_distinct();
   }
 }
