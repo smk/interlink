@@ -216,6 +216,16 @@ function interlink_get_types() {
 }
 
 /**
+ * Implementation of hook_views_api().
+ */
+function interlink_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'interlink') . '/views',
+  );
+}
+
+/**
  * @defgroup interlink_crud Interlink CRUD functions
  * @{
  */
