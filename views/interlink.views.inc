@@ -26,11 +26,11 @@ function interlink_views_data()  {
   );
 
   $data['interlink_term']['term'] = array(
-    'title' => t('Interlinked'),
-    'help' => t('Whether the node acts as interlinked (glossary) term.'),
+    'title' => t('Acts as interlinked term'),
+    'help' => t('Whether the node acts as interlinked term.'),
     'filter' => array(
       'handler' => 'interlink_views_handler_filter_linked',
-      'label' => t('Filter nodes that act as interlinked (glossary) term?'),
+      'label' => t('Filter nodes that act as interlinked term?'),
       'type' => 'yes-no',
     ),
   );
@@ -49,6 +49,31 @@ function interlink_views_handlers() {
     'handlers' => array(
       'interlink_views_handler_filter_linked' => array(
         'parent' => 'views_handler_filter_boolean_operator',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_views_plugins().
+ */
+function interlink_views_plugins() {
+  $path = drupal_get_path('module', 'interlink') . '/views';
+  return array(
+    'style' => array(
+      'interlink' => array(
+        'title' => t('Interlink glossary'),
+        'help' => t('Displays rows as glossary using an HTML definition list.'),
+        #'handler' => 'views_plugin_style',
+        #'parent' => '',
+        'handler' => 'interlink_views_plugin_style_definition_list',
+        'path' => $path,
+        'theme' => 'interlink_views_view_definition_list',
+        'theme path' => $path,
+        'uses row plugin' => TRUE,
+        #'uses options' => TRUE,
+        'type' => 'normal',
+        #'help topic' => 'style-list',
       ),
     ),
   );

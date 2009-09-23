@@ -13,6 +13,33 @@ define('INTERLINK_TYPE_ABBREVIATION', 1);
 define('INTERLINK_TYPE_SYNONYM',      2);
 
 /**
+ * Return list of supported types for terms.
+ */
+function interlink_get_types() {
+  return array(
+    INTERLINK_TYPE_ABBREVIATION => 'abbreviations',
+    INTERLINK_TYPE_SYNONYM => 'synonyms',
+  );
+}
+
+/**
+ * Implementation of hook_views_api().
+ */
+function interlink_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'interlink') . '/views',
+  );
+}
+
+/**
+ * Implementation of hook_init().
+ */
+function interlink_init() {
+  drupal_add_css(drupal_get_path('module', 'interlink') .'/interlink.css');
+}
+
+/**
  * Implementation of hook_form_alter().
  */
 function interlink_form_alter(&$form, $form_state, $form_id) {
@@ -44,7 +71,7 @@ function interlink_form_alter(&$form, $form_state, $form_id) {
     $form['#validate'][] = 'interlink_node_form_validate';
 
     if (module_exists('vertical_tabs')) {
-      // Add javascript tp provide vertical tabs summary callbacks.
+      // Add javascript providing vertical tabs summaries.
       drupal_add_js(drupal_get_path('module', 'interlink') .'/interlink.node_form.js');
     }
   }
@@ -54,20 +81,45 @@ function interlink_node_form_validate($form, &$form_state) {
   //$synonyms = explode("\n", $form_state['values']['interlink']['synonyms']);
 }
 
+/**
+ * Implementation of hook_nodeapi().
+ */
 function interlink_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
-  if ($op == 'insert' || $op == 'update') {
-    foreach (interlink_get_types() as $type) {
-      $node->interlink[$type] = explode("\n", $node->interlink[$type]);
-    }
-    interlink_save_terms('node', $node->nid, $node->title, $node->interlink);
+  switch ($op) {
+    case 'insert':
+    case 'update':
+      // Save terms.
+      foreach (interlink_get_types() as $type) {
+        $node->interlink[$type] = explode("\n", $node->interlink[$type]);
+      }
+      interlink_save_terms('node', $node->nid, $node->title, $node->interlink);
+      break;
+
+    case 'view':
+      // Set build mode for nodes acting as interlink terms.
+      if ($terms = interlink_load_terms('node', $node->nid)) {
+        $node->build_mode = 'interlink';
+        $node->interlink = $terms;
+      }
+      break;
   }
 }
 
 /**
- * Implementation of hook_init().
+ * Implementation of hook_content_build_modes().
  */
-function interlink_init() {
-  drupal_add_css(drupal_get_path('module', 'interlink') .'/interlink.css');
+function interlink_content_build_modes() {
+  return array(
+    'interlink' => array(
+      'title' => t('Interlink'),
+      'build modes' => array(
+        'interlink' => array(
+          'title' => t('Glossary'),
+          'views style' => TRUE,
+        ),
+      ),
+    ),
+  );
 }
 
 /**
@@ -99,7 +151,7 @@ function interlink_filter($op, $delta = 0, $format = -1, $text = '') {
 function interlink_filter_process($text, $format) {
   require_once './sites/all/libraries/simplehtmldom/simple_html_dom.php';
 
-  // Load regular expression consiting of all linked terms.
+  // Load regular expression consisting of all linked terms.
   if ($cache = cache_get('interlink:rx')) {
     $regex = $cache->data;
   }
@@ -206,26 +258,6 @@ function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
 }
 
 /**
- * Helper function; return list of types for terms.
- */
-function interlink_get_types() {
-  return array(
-    INTERLINK_TYPE_ABBREVIATION => 'abbreviations',
-    INTERLINK_TYPE_SYNONYM => 'synonyms',
-  );
-}
-
-/**
- * Implementation of hook_views_api().
- */
-function interlink_views_api() {
-  return array(
-    'api' => 2,
-    'path' => drupal_get_path('module', 'interlink') . '/views',
-  );
-}
-
-/**
  * @defgroup interlink_crud Interlink CRUD functions
  * @{
  */
@@ -253,10 +285,7 @@ function interlink_load_term($term) {
  *   An array of terms, separated by type.
  */
 function interlink_load_terms($object_type, $object_id) {
-  $terms = array(
-    'abbreviations' => array(),
-    'synonyms' => array(),
-  );
+  $terms = array();
   $types = interlink_get_types();
   $result = db_query("SELECT term, type FROM {interlink_term} WHERE object_type = '%s' AND object_id = %d", $object_type, $object_id);
   while ($row = db_fetch_array($result)) {
@@ -280,13 +309,15 @@ function interlink_load_terms($object_type, $object_id) {
 function interlink_save_terms($object_type, $object_id, $object_title, array $terms) {
   // Clean data.
   foreach (interlink_get_types() as $type) {
-    foreach ($terms[$type] as $key => $value) {
-      if (trim($value) == '') {
-        unset($terms[$type][$key]);
-        continue;
+    if (is_array($terms[$type])) {
+      foreach ($terms[$type] as $key => $value) {
+        if (trim($value) == '') {
+          unset($terms[$type][$key]);
+          continue;
+        }
+        // Strip carriage return leftovers on Windows OS.
+        $terms[$type][$key] = str_replace("\r", '', $value);
       }
-      // Strip carriage return leftovers on Windows OS.
-      $terms[$type][$key] = str_replace("\r", '', $value);
     }
   }
   // No need to flush caches if nothing changed.
