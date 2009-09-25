@@ -13,7 +13,7 @@ define('INTERLINK_TYPE_ABBREVIATION', 1);
 define('INTERLINK_TYPE_SYNONYM',      2);
 
 /**
- * Return list of supported types for terms.
+ * Return a list of supported types for terms.
  */
 function interlink_get_types() {
   return array(
@@ -255,6 +255,26 @@ function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
   );
   $options['attributes'] += array('class' => 'interlink interlink-' . $term->object_type);
   return l($match, $url, $options);
+}
+
+/**
+ * Implementation of hook_preprocess_node().
+ */
+function interlink_preprocess_node(&$variables) {
+  $node = $variables['node'];
+  if (isset($node->interlink) && $variables['page']) {
+    // Add template suggestions for nodes acting as interlinked terms.
+    $variables['template_files'][] = 'interlink-node';
+    $variables['template_files'][] = 'interlink-node-' . $node->type;
+  }
+}
+
+/**
+ * Implementation of hook_theme_registry_alter().
+ */
+function interlink_theme_registry_alter(&$registry) {
+  // Add interlink's theme directory to the list of searched paths.
+  $registry['node']['theme paths'][] = drupal_get_path('module', 'interlink') . '/theme';
 }
 
 /**
