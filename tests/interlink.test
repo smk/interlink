@@ -44,13 +44,19 @@ class InterlinkFilterTestCase extends DrupalWebTestCase {
       'type' => 'page',
       'interlink' => array(
         'abbreviations' => implode("\n", array(
-          'simple',
-          'plural form',
-          'connected',
-          'excluded',
-          'abbr within anchor'
+          'simple abbreviation',
+          'plural abbreviation',
+          'connected abbreviation',
+          'excluded abbreviation',
+          'abbreviation within anchor'
         )),
-        'synonyms' => 'synonym within anchor',
+        'synonyms' => implode("\n", array(
+          'simple synonym',
+          'plural synonym',
+          'connected synonym',
+          'excluded synonym',
+          'synonym within anchor'
+        )),
       ),
     );
     $this->term_node = $this->drupalCreateNode($settings);
@@ -61,19 +67,24 @@ class InterlinkFilterTestCase extends DrupalWebTestCase {
       'format' => $this->format_id,
       'body' => implode("\n", array(
         // Simple term must match.
-        '1. simple',
-        // Repeated term must not match again.
-        '1.1. simple again',
+        '1.1. simple abbreviation',
+        '1.2. simple synonym',
+        // Repeated terms must not match again.
+        '1.3. simple abbreviation again',
+        '1.4. simple synonym again',
         // Plural form must match.
-        '2. plural forms',
+        '2.1. plural abbreviations',
+        '2.2. plural synonyms',
         // Part of a connected word must match.
-        '3. word-connected',
+        '3.1. word-connected abbreviation',
+        '3.2. word-connected synonym',
         // Within excluded parent tags must NOT match.
-        '4. <abbr>excluded</abbr>',
-        // Abbreviation within existing anchor tag must not create a link.
-        '4.1. <a><strong>abbr within anchor is ok</strong></a>',
-        // Synonym within existing anchor tag must change anything.
-        '4.2. <a>synonym within anchor is not ok</a>',
+        '4.1. <abbr>excluded abbreviation</abbr>',
+        '4.2. <abbr>excluded synonym</abbr>',
+        // Abbreviation within anchor tag must add ABBR but no link.
+        '5.1. <a><strong>abbreviation within anchor is ok</strong></a>',
+        // Synonym within anchor tag must be ignored.
+        '5.2. <a>synonym within anchor is not ok</a>',
       )),
     );
     $test_node = $this->drupalCreateNode($settings);
@@ -82,13 +93,22 @@ class InterlinkFilterTestCase extends DrupalWebTestCase {
     $this->drupalGet('node/' . $test_node->nid);
 
     // Check for expected output.
-    $this->assertPattern('@1. '. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'simple') . '@', t('Simple term'));
-    $this->assertRaw('1.1. simple again', t('Repeated term'));
-    $this->assertPattern('@2\. '. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'plural form') . 's@', t('Plural form'));
-    $this->assertPattern('@3\. word-'. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'connected') . '@', t('Connected terms'));
-    $this->assertRaw('4. <abbr>excluded</abbr>', t('Term within excluded parent tag'));
-    $this->assertPattern('@4\.1\. <a><strong>'. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'abbr within anchor', FALSE) . ' is ok</strong></a>@', t('Abbreviation within existing anchor tag'));
-    $this->assertRaw('4.2. <a>synonym within anchor is not ok</a>', t('Synonym within existing anchor tag'));
+    $this->assertPattern('@1\.1\. '. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'simple abbreviation') . '@', t('Simple abbreviation matches'));
+    $this->assertPattern('@1\.2\. '. $this->getInterlinkPattern(INTERLINK_TYPE_SYNONYM, 'simple synonym') . '@', t('Simple synonym matches'));
+    $this->assertRaw('1.3. simple abbreviation again', t('Repeated abbreviation does not match again'));
+    $this->assertRaw('1.4. simple synonym again', t('Repeated synonym does not match again'));
+
+    $this->assertPattern('@2\.1\. '. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'plural abbreviation') . 's@', t('Plural form of abbreviation matches'));
+    $this->assertPattern('@2\.2\. '. $this->getInterlinkPattern(INTERLINK_TYPE_SYNONYM, 'plural synonym') . 's@', t('Plural form of synonym matches'));
+
+    $this->assertPattern('@3\.1\. word-'. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'connected abbreviation') . '@', t('Abbreviation as part of a connected word matches'));
+    $this->assertPattern('@3\.2\. word-'. $this->getInterlinkPattern(INTERLINK_TYPE_SYNONYM, 'connected synonym') . '@', t('Synonym as part of a connected word matches'));
+
+    $this->assertRaw('4.1. <abbr>excluded abbreviation</abbr>', t('Abbreviation within excluded parent tag does not match'));
+    $this->assertRaw('4.2. <abbr>excluded synonym</abbr>', t('Synonym within excluded parent tag does not match'));
+
+    $this->assertPattern('@5\.1\. <a><strong>'. $this->getInterlinkPattern(INTERLINK_TYPE_ABBREVIATION, 'abbreviation within anchor', FALSE) . ' is ok</strong></a>@', t('Abbreviation within anchor tag matches'));
+    $this->assertRaw('5.2. <a>synonym within anchor is not ok</a>', t('Synonym within anchor tag does not match'));
   }
 
   /**

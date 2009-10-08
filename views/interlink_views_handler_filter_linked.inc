@@ -7,7 +7,7 @@
  */
 
 /**
- * Filter by whether a node acts as interlinked (glossray) term.
+ * Filter by whether a node acts as interlinked (glossary) term.
  */
 class interlink_views_handler_filter_linked extends views_handler_filter_boolean_operator {
   function query() {

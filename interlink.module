@@ -98,10 +98,17 @@ function interlink_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
     case 'view':
       // Set build mode for nodes acting as interlink terms.
       if ($terms = interlink_load_terms('node', $node->nid)) {
-        $node->build_mode = 'interlink';
+        // TODO Required?
+        #$node->build_mode = 'interlink';
         $node->interlink = $terms;
       }
       break;
+
+    case 'alter':
+      // Add structural markup around node body, except for teaser and views.
+      if (isset($node->interlink) && !$a3 && !isset($node->view)) {
+        $node->body = '<dl class="interlink-term"><dt><dfn id="interlink-node-' . $node->nid . '">' . check_plain($node->title) . '</dfn></dt><dd>' . $node->body . '</dd></dl>';
+      }
   }
 }
 
@@ -200,7 +207,7 @@ function interlink_filter_process($text, $format) {
       $parent = $parent->parent;
     }
 
-    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "_interlink_filter_replace('$hash', '\\1', $in_anchor)", $element->innertext);
+    $element->innertext = preg_replace('/\b(' . $regex . ')/ue', "interlink_filter_replace('$hash', '\\1', $in_anchor)", $element->innertext);
   }
 
   return $html->save();
@@ -209,7 +216,7 @@ function interlink_filter_process($text, $format) {
 /**
  * Helper function to replace a matched phrase.
  */
-function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
+function interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
   static $terms = array(), $matches = array(), $first_only;
 
   if (!isset($first_only)) {
@@ -219,8 +226,8 @@ function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
   if ($first_only && isset($matches[$hash][$match])) {
     return $match;
   }
-  $matches[$hash][$match] = TRUE;
 
+  // Load term.
   if (!isset($terms[$match])) {
     $terms[$match] = interlink_load_term($match);
   }
@@ -228,25 +235,31 @@ function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
 
   switch ($term->type) {
     case INTERLINK_TYPE_ABBREVIATION:
-      $match = '<abbr title="' . check_plain($term->title) . '">' . $match . '</abbr>';
-      if ($in_anchor) {
-        // Just expand the abbreviation if it appears within an anchor tag.
-        return $match;
+      // Expand abbreviation.
+      $output = '<abbr title="' . check_plain($term->title) . '">' . $match . '</abbr>';
+      if ($in_anchor || interlink_filter_nolink($term)) {
+        // Just expand the abbreviation if it appears within an anchor tag
+        // or within the source object.
+        return $output;
       }
       // Otherwise link it to the term.
       $options['html'] = TRUE;
       break;
   
     case INTERLINK_TYPE_SYNONYM:
-      if ($in_anchor) {
-        // A synonym within an anchor tag cannot be linked.
-        unset($matches[$hash][$match]);
+      if ($in_anchor || interlink_filter_nolink($term)) {
+        // A synonym within an anchor tag cannot be linked. Likewise, it doesn't
+        // make sense to link synonyms in the source object itself.
         return $match;
       }
       // Otherwise link it to the term.
+      $output = $match;
       $options['attributes']['title'] = check_plain($term->title);
       break;
   }
+
+  // Mark this match as 'seen'.
+  $matches[$hash][$match] = TRUE;
 
   $url = $term->object_type . '/' . $term->object_id;
   $options += array(
@@ -254,18 +267,46 @@ function _interlink_filter_replace($hash, $match, $in_anchor = FALSE) {
     'attributes' => array(),
   );
   $options['attributes'] += array('class' => 'interlink interlink-' . $term->object_type);
-  return l($match, $url, $options);
+  return l($output, $url, $options);
+}
+
+/**
+ * Check conditions when a term must not be linked.
+ */
+function interlink_filter_nolink($term) {
+  static $caller;
+
+  if (!isset($caller)) {
+    // Determine calling function to avoid linking objects to themselves.
+    foreach (debug_backtrace() as $trace) {
+      // Node view.
+      if ($trace['function'] == 'node_view') {
+        $caller = array(
+          'type' => 'node',
+          'id' => $trace['args'][0]->nid
+        );
+        break;
+      }
+    }
+    if (!isset($caller)) {
+      $caller = FALSE;
+    }
+  }
+
+  return (!$caller || ($caller['type'] == $term->object_type && $caller['id'] == $term->object_id));
 }
 
 /**
  * Implementation of hook_preprocess_node().
+ *
+ * Switch template for views displaying interlinked nodes.
  */
-function interlink_preprocess_node(&$variables) {
-  $node = $variables['node'];
-  if (isset($node->interlink) && $variables['page']) {
-    // Add template suggestions for nodes acting as interlinked terms.
-    $variables['template_files'][] = 'interlink-node';
-    $variables['template_files'][] = 'interlink-node-' . $node->type;
+function interlink_preprocess_node(&$vars) {
+  $node = $vars['node'];
+  // TODO Weak condition, make dependent on style plugin instead.
+  if (isset($node->interlink) && isset($node->view)) {
+    $vars['template_files'][] = 'interlink-node';
+    $vars['template_files'][] = 'interlink-node-' . $node->type;
   }
 }
 

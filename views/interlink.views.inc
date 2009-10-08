@@ -10,7 +10,7 @@
  * Implementation of hook_view_data().
  */
 function interlink_views_data()  {
-  $data['interlink_term']['table']['group'] = t('Node');
+  $data['interlink_term']['table']['group'] = t('Interlink');
 
   // Let Views know that our example table joins to the 'node'
   // base table. This means it will be available when listing
@@ -58,24 +58,37 @@ function interlink_views_handlers() {
  * Implementation of hook_views_plugins().
  */
 function interlink_views_plugins() {
-  $path = drupal_get_path('module', 'interlink') . '/views';
+  $path = drupal_get_path('module', 'interlink');
   return array(
+    'module' => 'interlink',
+    'row' => array(
+      'interlink' => array(
+        'title' => t('Node as glossary'),
+        'help' => t("Display the node with standard node view using the 'interlink' build mode."),
+        'handler' => 'interlink_views_plugin_row_node_view',
+        'parent' => 'node',
+        'path' => $path . '/views',
+        'theme' => 'interlink_views_view_row_node',
+        'theme path' => $path . '/theme',
+        'base' => array('node'), // only works with 'node' as base.
+        'uses options' => TRUE,
+        'type' => 'normal',
+        #'help topic' => 'style-node',
+      ),
+    ),
     'style' => array(
       'interlink' => array(
-        'title' => t('Interlink glossary'),
+        'title' => t('Glossary list'),
         'help' => t('Displays rows as glossary using an HTML definition list.'),
-        #'handler' => 'views_plugin_style',
-        #'parent' => '',
         'handler' => 'interlink_views_plugin_style_definition_list',
-        'path' => $path,
+        'path' => $path . '/views',
         'theme' => 'interlink_views_view_definition_list',
-        'theme path' => $path,
+        'theme path' => $path . '/theme',
         'uses row plugin' => TRUE,
-        #'uses options' => TRUE,
+        'uses options' => FALSE,
         'type' => 'normal',
         #'help topic' => 'style-list',
       ),
     ),
   );
 }
-
