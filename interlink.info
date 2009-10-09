@@ -1,4 +1,5 @@
 ; $Id$
 name = InterLink
 description = Universal, semantically correct word/phrase linking a.k.a. glossary.
+dependencies[] = views
 core = 6.x
